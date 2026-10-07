@@ -1,20 +1,7 @@
 name: Build
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - '**/*.kt'
-      - '**/*.kts'
-  push:
-    branches:
-      - master
-    paths:
-      - '**/*.kt'
-      - '**/*.kts'
   workflow_dispatch:
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,12 +10,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '25'
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
       - name: Build
-        run: ./gradlew build --full-stacktrace
+        run: |
+          chmod +x gradlew
+          ./gradlew build libreforgeJar --full-stacktrace
+
+      - name: Listar jars
+        run: |
+          find . -name "*.jar" -path "*build*" -not -path "./.gradle/*" | while read f; do
+            echo "== $f ($(du -k "$f" | cut -f1) KB)"
+            unzip -l "$f" | grep -i -m3 libreforge || echo "   (sin libreforge)"
+          done
+
+      - name: Upload jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: jars
+          path: |
+            **/build/libs/*.jar
+            bin/*.jar
+          if-no-files-found: error
